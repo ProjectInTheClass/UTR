@@ -1,0 +1,254 @@
+
+
+import SwiftUI
+
+// ExamAssignmentView
+struct ExamAssignmentView: View {
+    @State private var showingAddExam = false
+    @State private var showingAddAssignment = false
+    @State private var showingActionSheet = false
+    @State private var examItems: [ExamItem] = []
+    @State private var assignmentItems: [AssignmentItem] = []
+    
+    var body: some View {
+        VStack {
+            HStack {
+                Text("시험/과제")
+                    .font(.largeTitle)
+                    .fontWeight(.bold)
+                    .padding()
+                
+                Spacer()
+                
+                NavigationLink(destination: SettingsView()) {
+                    Image(systemName: "gearshape.fill")
+                        .font(.headline)
+                        .padding()
+                        .foregroundColor(.black)
+                }
+                
+                Button(action: {
+                    showingActionSheet = true
+                }) {
+                    Image(systemName: "plus")
+                        .font(.headline)
+                        .padding()
+                        .foregroundColor(.black)
+                }
+                .actionSheet(isPresented: $showingActionSheet) {
+                    ActionSheet(
+                        title: Text("추가할 항목을 선택하세요"),
+                        buttons: [
+                            .default(Text("시험 추가")) {
+                                showingAddExam = true
+                            },
+                            .default(Text("과제 추가")) {
+                                showingAddAssignment = true
+                            },
+                            .cancel()
+                        ]
+                    )
+                }
+            }
+            
+            List {
+                Section(header: Text("시험")) {
+                    ForEach(examItems) { exam in
+                        NavigationLink(destination: ExamDetailView(exam: exam)) {
+                            Text("\(exam.title) - \(exam.date.formatted(date: .abbreviated, time: .omitted))")
+                        }
+                    }
+                    .onDelete(perform: deleteExam)
+                }
+                
+                Section(header: Text("과제")) {
+                    ForEach(assignmentItems) { assignment in
+                        NavigationLink(destination: AssignmentDetailView(assignment: assignment)) {
+                            HStack {
+                                Text("\(assignment.title) - \(assignment.dueDate.formatted(date: .abbreviated, time: .omitted))")
+                                Spacer()
+                                if assignment.isPriority {
+                                    Image(systemName: "star.fill")
+                                        .foregroundColor(.yellow)
+                                }
+                            }
+                        }
+                    }
+                    .onDelete(perform: deleteAssignment)
+                }
+            }
+            .listStyle(InsetGroupedListStyle())
+            .navigationTitle("시험/과제")
+            .sheet(isPresented: $showingAddExam) {
+                AddExamView(examItems: $examItems)
+            }
+            .sheet(isPresented: $showingAddAssignment) {
+                AddAssignmentView(assignmentItems: $assignmentItems)
+            }
+        }
+    }
+    
+    private func deleteExam(at offsets: IndexSet) {
+        examItems.remove(atOffsets: offsets)
+    }
+    
+    private func deleteAssignment(at offsets: IndexSet) {
+        assignmentItems.remove(atOffsets: offsets)
+    }
+}
+
+// ExamItem
+struct ExamItem: Identifiable, Codable {
+    var id = UUID()
+    var title: String
+    var date: Date
+}
+
+// AssignmentItem
+struct AssignmentItem: Identifiable, Codable {
+    var id = UUID()
+    var title: String
+    var subject: String
+    var dueDate: Date
+    var isPriority: Bool = false
+    var reminderDate: Date
+    var repeatTask: Bool
+}
+
+// AddExamView
+struct AddExamView: View {
+    @Binding var examItems: [ExamItem]
+    @Environment(\.presentationMode) var presentationMode
+    @State private var title: String = ""
+    @State private var date: Date = Date()
+    
+    var body: some View {
+        NavigationView {
+            Form {
+                Section(header: Text("시험 정보")) {
+                    TextField("시험명", text: $title)
+                    DatePicker("날짜", selection: $date, displayedComponents: [.date, .hourAndMinute])
+                }
+                
+                Section {
+                    Button("저장") {
+                        let newItem = ExamItem(title: title, date: date)
+                        examItems.append(newItem)
+                        presentationMode.wrappedValue.dismiss()
+                    }
+                }
+            }
+            .navigationBarTitle("시험 추가")
+            .navigationBarItems(trailing: Button("닫기") {
+                presentationMode.wrappedValue.dismiss()
+            })
+        }
+    }
+}
+
+// AddAssignmentView
+struct AddAssignmentView: View {
+    @Binding var assignmentItems: [AssignmentItem]
+    @Environment(\.presentationMode) var presentationMode
+    @State private var title: String = ""
+    @State private var subject: String = ""
+    @State private var dueDate: Date = Date()
+    @State private var isPriority: Bool = false
+    @State private var reminderDate: Date = Date()
+    @State private var repeatTask: Bool = false
+    
+    var body: some View {
+        NavigationView {
+            Form {
+                Section(header: Text("과제 정보")) {
+                    TextField("과목명", text: $subject)
+                    TextField("과제명", text: $title)
+                    HStack {
+                        Text("중요도")
+                        Spacer()
+                        Button(action: {
+                            isPriority.toggle()
+                        }) {
+                            Image(systemName: isPriority ? "star.fill" : "star")
+                                .foregroundColor(isPriority ? .yellow : .gray)
+                        }
+                    }
+                }
+                
+                Section(header: Text("시간 설정")) {
+                    DatePicker("마감일", selection: $dueDate, displayedComponents: [.date, .hourAndMinute])
+                    DatePicker("알림 설정", selection: $reminderDate, displayedComponents: [.date, .hourAndMinute])
+                    Toggle("반복", isOn: $repeatTask)
+                }
+                
+                Section {
+                    Button("저장") {
+                        let newItem = AssignmentItem(
+                            title: title,
+                            subject: subject,
+                            dueDate: dueDate,
+                            isPriority: isPriority,
+                            reminderDate: reminderDate,
+                            repeatTask: repeatTask
+                        )
+                        assignmentItems.append(newItem)
+                        assignmentItems.sort { $0.isPriority && !$1.isPriority }
+                        presentationMode.wrappedValue.dismiss()
+                    }
+                }
+            }
+            .navigationBarTitle("과제 추가")
+            .navigationBarItems(trailing: Button("닫기") {
+                presentationMode.wrappedValue.dismiss()
+            })
+        }
+    }
+}
+
+// ExamDetailView
+struct ExamDetailView: View {
+    var exam: ExamItem
+    
+    var body: some View {
+        VStack {
+            Text(exam.title)
+                .font(.largeTitle)
+                .padding()
+            
+            Text("날짜: \(exam.date.formatted(date: .abbreviated, time: .shortened))")
+                .padding()
+            
+            Spacer()
+        }
+        .navigationTitle("시험 상세")
+    }
+}
+
+// AssignmentDetailView
+struct AssignmentDetailView: View {
+    var assignment: AssignmentItem
+    
+    var body: some View {
+        VStack {
+            Text(assignment.title)
+                .font(.largeTitle)
+                .padding()
+            
+            Text("과목: \(assignment.subject)")
+            Text("마감일: \(assignment.dueDate.formatted(date: .abbreviated, time: .shortened))")
+            if assignment.isPriority {
+                Text("중요도: 최우선")
+            }
+            Text("알림 설정: \(assignment.reminderDate.formatted(date: .abbreviated, time: .shortened))")
+            Text("반복: \(assignment.repeatTask ? "예" : "아니오")")
+            
+            Spacer()
+        }
+        .navigationTitle("과제 상세")
+    }
+}
+
+
+#Preview {
+    ExamAssignmentView()
+}
