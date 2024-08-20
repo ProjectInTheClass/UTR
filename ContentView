@@ -1,6 +1,6 @@
 import SwiftUI
+import UserNotifications
 
-//ContentView
 struct ContentView: View {
     @State private var isActive = false
     
@@ -17,6 +17,7 @@ struct ContentView: View {
                         .padding()
                 }
                 .onAppear {
+                    requestNotificationPermission()
                     DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
                         withAnimation {
                             self.isActive = true
@@ -27,9 +28,19 @@ struct ContentView: View {
         }
         .edgesIgnoringSafeArea(.top)
     }
+    
+    func requestNotificationPermission() {
+        let center = UNUserNotificationCenter.current()
+        center.requestAuthorization(options: [.alert, .sound, .badge]) { granted, error in
+            if granted {
+                print("알림 권한이 허용되었습니다.")
+            } else {
+                print("알림 권한이 거부되었습니다.")
+            }
+        }
+    }
 }
 
-//MainPageView
 struct MainPageView: View {
     @State private var selectedTab = 0
     
@@ -37,35 +48,35 @@ struct MainPageView: View {
         TabView(selection: $selectedTab) {
             TimetableView()
                 .tabItem {
-                    Image(systemName: "calendar")
+                    Image(systemName: "calendar.circle")
                     Text("시간표")
                 }
                 .tag(0)
             
             ExamAssignmentView()
                 .tabItem {
-                    Image(systemName: "book")
-                    Text("시험/과제")
+                    Image(systemName: "book.circle")
+                    Text("시험 / 과제")
                 }
                 .tag(1)
             
-            Text("오늘 알림")
+            Text("오늘 일정")
                 .tabItem {
-                    Image(systemName: "list.bullet")
-                    Text("오늘 알림")
+                    Image(systemName: "list.bullet.circle")
+                    Text("오늘 일정")
                 }
                 .tag(2)
             
             Text("알림")
                 .tabItem {
-                    Image(systemName: "bell.fill")
+                    Image(systemName: "bell.circle")
                     Text("알림")
                 }
                 .tag(3)
             
             MyPage()
                 .tabItem {
-                    Image(systemName: "person")
+                    Image(systemName: "person.circle")
                     Text("MY")
                 }
                 .tag(4)
@@ -74,7 +85,6 @@ struct MainPageView: View {
     }
 }
 
-//TimetableView
 struct TimetableView: View {
     @State private var showingAddTimetableSelection = false
     @State private var showingTimetableList = false
@@ -117,10 +127,20 @@ struct TimetableView: View {
             }
             .padding(.top, 20)
             
-            TimetableGridView(timetableItems: $timetableItems)
-                .padding(.top)
+            ZStack {
+                HStack {
+                    Spacer()
+                    TimetableGridView(timetableItems: $timetableItems)
+                        .padding(.vertical, 50)
+                    Spacer()
+                }
+                .zIndex(1.0)
+                Rectangle()
+                    .fill(Color.litegrayColor)
+                    
+            }
+               
         }
-        .padding()
         .sheet(isPresented: $showingAddTimetableSelection) {
             AddTimetableView(timetableItems: $timetableItems)
         }
@@ -137,53 +157,61 @@ struct TimetableView: View {
     }
 }
 
-//TimetableGridView
 struct TimetableGridView: View {
     @Binding var timetableItems: [TimetableItem]
     @State private var selectedItem: TimetableItem?
-    
+
     let days = ["월", "화", "수", "목", "금"]
     let hours = Array(9...20)
-    
+
     var body: some View {
         GeometryReader { geometry in
-            let gridWidth = (geometry.size.width - 50) / CGFloat(days.count)
+            let gridWidth = (geometry.size.width - 70) / CGFloat(days.count)
             let gridHeight = (geometry.size.height - 50) / CGFloat(hours.count)
-            
+
             VStack(spacing: 0) {
+                // 헤더 영역
                 HStack(spacing: 0) {
                     Text("")
                         .frame(width: 50, height: gridHeight)
                         .background(Color.gray.opacity(0.2))
-                    
+
                     ForEach(days, id: \.self) { day in
                         Text(day)
                             .frame(width: gridWidth, height: gridHeight)
                             .background(Color.gray.opacity(0.2))
-                            .border(Color.black)
+                            .border(Color.gray.opacity(0.7)) // 짙은 회색으로 변경
+                            .cornerRadius(5) // 곡률 적용
                     }
                 }
-                
+
+                // 시간표 영역
                 ForEach(hours, id: \.self) { hour in
                     HStack(spacing: 0) {
                         Text("\(hour)")
                             .frame(width: 50, height: gridHeight)
                             .background(Color.gray.opacity(0.2))
-                            .border(Color.black)
-                        
+                            .border(Color.gray.opacity(0.7)) // 짙은 회색으로 변경
+                            .cornerRadius(5) // 곡률 적용
+
                         ForEach(days.indices, id: \.self) { dayIndex in
                             ZStack {
                                 Rectangle()
-                                    .stroke(Color.gray)
+                                    .fill(Color.white)
+                                    .border(Color.gray.opacity(0.7)) // 짙은 회색으로 변경
                                     .frame(width: gridWidth, height: gridHeight)
-                                
+                                    .cornerRadius(5) // 곡률 적용
+
+                                // 시간표 항목 렌더링
                                 ForEach(timetableItems) { item in
                                     let startHour = Calendar.current.component(.hour, from: item.startTime)
                                     let endHour = Calendar.current.component(.hour, from: item.endTime)
-                                    
+
                                     if item.dayIndex == dayIndex && (startHour <= hour && hour < endHour) {
                                         VStack {
                                             Text(item.title)
+                                                .foregroundColor(.white) // 텍스트 색상 흰색으로 설정
+                                                .padding(5) // 텍스트 패딩 추가
                                         }
                                         .frame(width: gridWidth, height: gridHeight * CGFloat(endHour - startHour))
                                         .background(item.color.color)
@@ -198,6 +226,8 @@ struct TimetableGridView: View {
                     }
                 }
             }
+            .frame(width: geometry.size.width, height: geometry.size.height, alignment: .topLeading)
+            .padding(.horizontal, 10)
         }
         .sheet(item: $selectedItem) { item in
             TimetableDetailView(timetableItem: item, timetableItems: $timetableItems)
@@ -205,8 +235,6 @@ struct TimetableGridView: View {
         .padding(.bottom, 50)
     }
 }
-
-//TimetableDetailView
 struct TimetableDetailView: View {
     var timetableItem: TimetableItem
     @Binding var timetableItems: [TimetableItem]
@@ -243,7 +271,6 @@ struct TimetableDetailView: View {
     }
 }
 
-//AddTimetableView
 struct AddTimetableView: View {
     @Binding var timetableItems: [TimetableItem]
     @Environment(\.presentationMode) var presentationMode
@@ -285,6 +312,7 @@ struct AddTimetableView: View {
                             endTime: endTime
                         )
                         timetableItems.append(newItem)
+                        scheduleNotification(for: newItem)
                         presentationMode.wrappedValue.dismiss()
                     }
                 }
@@ -295,9 +323,27 @@ struct AddTimetableView: View {
             })
         }
     }
+    
+    func scheduleNotification(for item: TimetableItem) {
+        let content = UNMutableNotificationContent()
+        content.title = "곧 시작할 수업: \(item.title)"
+        content.body = "\(item.professor) 교수님의 수업이 \(item.location)에서 시작됩니다."
+        content.sound = UNNotificationSound.default
+        
+        // Set the notification trigger to the class start time
+        let triggerDate = Calendar.current.dateComponents([.year, .month, .day, .hour, .minute], from: item.startTime)
+        let trigger = UNCalendarNotificationTrigger(dateMatching: triggerDate, repeats: false)
+        
+        let request = UNNotificationRequest(identifier: item.id.uuidString, content: content, trigger: trigger)
+        
+        UNUserNotificationCenter.current().add(request) { error in
+            if let error = error {
+                print("Error scheduling notification: \(error)")
+            }
+        }
+    }
 }
 
-//TimetableItem
 struct TimetableItem: Identifiable, Codable, Equatable {
     var id = UUID()
     var title: String
@@ -320,7 +366,6 @@ struct TimetableItem: Identifiable, Codable, Equatable {
     }
 }
 
-//CodableColor
 struct CodableColor: Codable, Equatable {
     let color: Color
     
@@ -338,62 +383,89 @@ struct CodableColor: Codable, Equatable {
         let green = try container.decode(Double.self, forKey: .green)
         let blue = try container.decode(Double.self, forKey: .blue)
         let opacity = try container.decode(Double.self, forKey: .opacity)
-        color = Color(.sRGB, red: red, green: green, blue: blue, opacity: opacity)
+        color = Color(red: red, green: green, blue: blue, opacity: opacity)
     }
     
     func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
-        let (red, green, blue, opacity) = color.components()
-        try container.encode(red, forKey: .red)
-        try container.encode(green, forKey: .green)
-        try container.encode(blue, forKey: .blue)
-        try container.encode(opacity, forKey: .opacity)
+        let components = color.components()
+        try container.encode(components.red, forKey: .red)
+        try container.encode(components.green, forKey: .green)
+        try container.encode(components.blue, forKey: .blue)
+        try container.encode(components.opacity, forKey: .opacity)
     }
 }
 
 extension Color {
+    static let litegrayColor: Color = .init("litegray")
+    
     func components() -> (red: Double, green: Double, blue: Double, opacity: Double) {
-        let components = cgColor?.components
-        return (red: Double(components?[0] ?? 0),
-                green: Double(components?[1] ?? 0),
-                blue: Double(components?[2] ?? 0),
-                opacity: Double(components?[3] ?? 0))
+        guard let components = self.cgColor?.components else {
+            return (red: 0, green: 0, blue: 0, opacity: 1)
+        }
+        
+        let red = Double(components[safe: 0] ?? 0)
+        let green = Double(components[safe: 1] ?? 0)
+        let blue = Double(components[safe: 2] ?? 0)
+        let opacity = Double(components[safe: 3] ?? 1)
+        
+        return (red, green, blue, opacity)
     }
 }
 
-//TimetableListView
+extension Collection {
+    subscript(safe index: Index) -> Element? {
+        return index >= startIndex && index < endIndex ? self[index] : nil
+    }
+}
+
 struct TimetableListView: View {
     var body: some View {
-        VStack {
-            HStack {
-                Text("시간표")
-                    .font(.largeTitle)
-                    .bold()
-                    .padding()
-                
-                Spacer()
-                
-                Button(action: {
-                }) {
-                    Image(systemName: "gearshape")
-                        .foregroundStyle(.black)
+        NavigationStack {
+            VStack {
+                HStack {
+                    Text("시간표")
                         .font(.title)
+                        .bold()
                         .padding()
+                    
+                    Spacer()
+                    
+                    Button(action: {
+                        // 추가 기능이 필요할 경우 여기에 구현
+                    }) {
+                        Image(systemName: "plus.square")
+                            .foregroundStyle(.black)
+                            .font(.title)
+                            .padding()
+                    }
                 }
-            }
-            
-            List {
-                Text("1학년 1학기")
                 
-                Text("1학년 2학기")
-                
-                Text("2학년 1학기")
+                List {
+                    
+                    Section(header: Text("1학년 1학기")) {
+                        NavigationLink(destination: TimetableView()) {
+                            Text("1학년 1학기")
+                        }
+                    }
+                    
+                    Section(header: Text("1학년 2학기")) {
+                        NavigationLink(destination: TimetableView()) {
+                            Text("1학년 2학기")
+                        }
+                    }
+                    
+                    Section(header: Text("2학년 1학기")) {
+                        NavigationLink(destination: TimetableView()) {
+                            Text("2학년 1학기")
+                        }
+                    }
+                }
             }
         }
     }
 }
 
-//SettingsView
 struct SettingsView: View {
     @State private var isNotificationEnabled = true
     @State private var isDarkModeEnabled = false
@@ -419,7 +491,7 @@ struct SettingsView: View {
                     }
                 }
             }
-            .navigationBarTitle("환경설정")
+            .navigationBarTitle("설정")
         }
     }
     
@@ -428,7 +500,6 @@ struct SettingsView: View {
     }
 }
 
-//ProfileView
 struct ProfileView: View {
     var body: some View {
         Text("프로필 화면")
@@ -438,4 +509,5 @@ struct ProfileView: View {
 
 #Preview {
     ContentView()
+    //TimetableView()
 }
